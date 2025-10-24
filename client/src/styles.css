@@ -1,0 +1,7 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+/* Smooth fonts + light background */
+:root { color-scheme: light; }
+html, body { scroll-behavior: smooth; }
