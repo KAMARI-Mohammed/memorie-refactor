@@ -1,5 +1,5 @@
 import { useEffect, useState } from "react";
-import { useLocation, Link } from "react-router-dom";
+import { useLocation } from "react-router-dom";
 import api from "../lib/api";
 import StoryCard from "../components/StoryCard";
 import StoryForm from "../components/StoryForm";
@@ -7,184 +7,207 @@ import { getToken } from "../lib/auth";
 
 export default function Feed() {
   const [posts, setPosts] = useState([]);
+  const [categories, setCategories] = useState([]);
+  const [activeCategory, setActiveCategory] = useState(null);
+  const [loading, setLoading] = useState(true);
   const [open, setOpen] = useState(false);
   const [search, setSearch] = useState("");
-  const [filter, setFilter] = useState(null);
   const location = useLocation();
-
   const authed = !!getToken();
 
-  // 🟣 Load posts
+  // 🔹 Fetch posts (with optional category)
+  async function loadPosts(category) {
+    setLoading(true);
+    try {
+      const { data } = await api.get("/api/posts", {
+        params: category ? { category } : {},
+      });
+      setPosts(data);
+    } catch (err) {
+      console.error("Failed to load posts", err);
+    } finally {
+      setLoading(false);
+    }
+  }
+
+  // 🔹 Load categories directly from backend
+  async function loadCategories() {
+    try {
+      const { data } = await api.get("/categories");
+      setCategories(data.map((c) => c.name));
+    } catch (err) {
+      console.error("Failed to load categories", err);
+    }
+  }
+
+  // 🟣 Initial load
   useEffect(() => {
-    api.get("/posts").then(({ data }) => setPosts(data));
+    loadPosts();
+    loadCategories();
   }, []);
 
-  // 🟣 Open compose from ?compose=1
+  // 🟣 Compose via query param
   useEffect(() => {
     const p = new URLSearchParams(location.search);
     if (p.get("compose") === "1") setOpen(true);
   }, [location.search]);
 
-  // 🟣 Add new post
+  // 🟣 When a new story is created
   function onCreated(p) {
     setPosts((prev) => [p, ...prev]);
+
+    // Safely extract category names from new post
+    const newCats = Array.isArray(p.categories)
+      ? p.categories.map((c) => c?.category?.name).filter(Boolean)
+      : [];
+
+    // Merge new categories into existing list
+    setCategories((prevCats) => {
+      const all = new Set([...(prevCats || []), ...newCats]);
+      return Array.from(all);
+    });
   }
 
-  // 🟣 Filter logic
-  const filteredPosts = posts.filter((p) => {
-    const matchesSearch =
-      p.title.toLowerCase().includes(search.toLowerCase()) ||
-      p.content.toLowerCase().includes(search.toLowerCase());
-    const matchesCategory =
-      !filter || (p.categories && p.categories.includes(filter));
-    return matchesSearch && matchesCategory;
-  });
+  // 🟣 Filter posts by search term (and protect against null)
+  const filteredPosts = Array.isArray(posts)
+    ? posts.filter((p) => {
+        const q = search.toLowerCase();
+        return (
+          p.title?.toLowerCase().includes(q) ||
+          p.content?.toLowerCase().includes(q)
+        );
+      })
+    : [];
 
+  // ──────────────────────────────────────────────
   return (
-    <div className="w-full bg-[#F9FAFB]">
-      <div className="max-w-[1750px] mx-auto px-12 py-12 grid grid-cols-1 lg:grid-cols-[280px_1fr] gap-12">
-        {/* 🔹 Sidebar */}
-        <aside className="bg-[#FBF9F7] rounded-2xl p-6 shadow-sm border border-gray-100 space-y-8 h-fit sticky top-24">
-          {/* Discover Header */}
-          <div>
-            <div className="flex items-center justify-between mb-3">
-              <h2 className="text-xl font-semibold text-gray-800">
-                Discover Stories
-              </h2>
-              <button
-                onClick={() => {
-                  setFilter(null);
-                  setSearch("");
-                }}
-                className="text-sm text-gray-500 hover:text-purple-600 transition"
+    <div className="w-full bg-[#F9FAFB] min-h-screen">
+      <div className="max-w-[1750px] mx-auto px-6 lg:px-12 py-12 grid grid-cols-1 lg:grid-cols-[280px_1fr] gap-12">
+        {/* 🟣 Sidebar */}
+        <aside className="bg-white border border-gray-200 rounded-2xl shadow-sm p-6 h-fit sticky top-24 space-y-6">
+          <div className="flex items-center justify-between">
+            <h2 className="text-lg font-semibold text-gray-800">
+              Discover Stories
+            </h2>
+            <button
+              onClick={() => {
+                setActiveCategory(null);
+                setSearch("");
+                loadPosts();
+              }}
+              className="text-sm text-gray-500 hover:text-gray-700"
+            >
+              Reset
+            </button>
+          </div>
+
+          {/* 🔍 Search */}
+          <div className="relative">
+            <input
+              type="text"
+              placeholder="Search by keywords, emotion..."
+              value={search}
+              onChange={(e) => setSearch(e.target.value)}
+              className="w-full px-3 py-2 pl-10 border border-gray-200 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-violet-500 bg-white"
+            />
+            <span className="absolute left-3 top-2.5 text-gray-400">
+              <svg
+                xmlns="http://www.w3.org/2000/svg"
+                className="h-4 w-4"
+                fill="none"
+                viewBox="0 0 24 24"
+                stroke="currentColor"
               >
-                ⟳ Reset
-              </button>
-            </div>
-
-            <label className="text-sm font-medium text-gray-700 block mb-1">
-              Search Stories
-            </label>
-            <div className="relative">
-              <input
-                type="text"
-                placeholder="Search by keywords, emotion..."
-                value={search}
-                onChange={(e) => setSearch(e.target.value)}
-                className="w-full border border-gray-300 rounded-lg p-2 pr-8 text-sm focus:outline-none focus:ring-2 focus:ring-purple-500"
-              />
-              <span className="absolute right-2 top-2.5 text-gray-400">🔍</span>
-            </div>
+                <path
+                  strokeLinecap="round"
+                  strokeLinejoin="round"
+                  strokeWidth={2}
+                  d="M21 21l-4.35-4.35M10 18a8 8 0 100-16 8 8 0 000 16z"
+                />
+              </svg>
+            </span>
           </div>
 
-          {/* Browse by Emotion */}
-          <div>
-            <h3 className="text-lg font-semibold text-gray-800 mb-2">
-              Browse by Emotion
+          {/* 🟣 Category chips */}
+          <div className="pt-2">
+            <h3 className="text-sm font-semibold text-gray-700 mb-2">
+              Browse by Category
             </h3>
-            <div className="space-y-2">
-              {[
-                "Hope & Inspiration",
-                "Grief & Loss",
-                "Growth & Change",
-                "Love & Connection",
-                "Struggle & Resilience",
-              ].map((c) => (
-                <label
-                  key={c}
-                  className="flex items-center gap-2 text-sm text-gray-700 cursor-pointer"
-                >
-                  <input
-                    type="checkbox"
-                    checked={filter === c}
-                    onChange={() => setFilter(c === filter ? null : c)}
-                    className="w-4 h-4 accent-purple-600"
-                  />
-                  {c}
-                </label>
-              ))}
-            </div>
-          </div>
-
-          {/* Life Stage */}
-          <div>
-            <h3 className="text-lg font-semibold text-gray-800 mb-2">
-              Life Stage
-            </h3>
-            <div className="space-y-2">
-              {[
-                "Young Adult (18–25)",
-                "Early Career (26–35)",
-                "Mid-Life (36–50)",
-                "Mature Adult (50+)",
-              ].map((stage) => (
-                <label
-                  key={stage}
-                  className="flex items-center gap-2 text-sm text-gray-700 cursor-pointer"
-                >
-                  <input
-                    type="checkbox"
-                    className="w-4 h-4 accent-purple-600"
-                    disabled
-                  />
-                  {stage}
-                </label>
-              ))}
-            </div>
-          </div>
-        </aside>
-
-        {/* 🔹 Main Content */}
-        <main className="flex-1 min-w-0">
-          {/* Share box */}
-          <div className="bg-white p-6 rounded-2xl shadow-sm border mb-8">
-            <h2 className="font-semibold">Share your story</h2>
-            <p className="text-sm text-gray-600">
-              Tell the world about a happy, sad, or unforgettable moment.
-            </p>
-            <div className="mt-3">
-              {authed ? (
-                <button
-                  onClick={() => setOpen(true)}
-                  className="px-5 py-2 rounded-xl bg-brand-600 text-white hover:bg-brand-700 transition"
-                >
-                  Write a story
-                </button>
+            <div className="flex flex-wrap gap-2">
+              {categories.length > 0 ? (
+                categories.map((cat) => (
+                  <button
+                    key={cat}
+                    onClick={() => {
+                      const newCat = cat === activeCategory ? null : cat;
+                      setActiveCategory(newCat);
+                      loadPosts(newCat);
+                    }}
+                    className={`px-4 py-1.5 text-sm rounded-full border transition-all duration-200 ${
+                      cat === activeCategory
+                        ? "bg-violet-600 text-white border-violet-600 shadow-sm"
+                        : "bg-white text-gray-700 border-gray-200 hover:border-violet-400 hover:text-violet-600"
+                    }`}
+                  >
+                    {cat}
+                  </button>
+                ))
               ) : (
-                <Link
-                  to="/login"
-                  className="px-5 py-2 rounded-xl border hover:bg-gray-50 transition"
-                >
-                  Log in to share
-                </Link>
+                <p className="text-gray-400 text-sm italic">
+                  No categories yet.
+                </p>
               )}
             </div>
           </div>
 
-          {/* Stories Grid */}
-          <div className="grid gap-8 grid-cols-[repeat(auto-fit,minmax(340px,1fr))]">
-            {filteredPosts.map((p) => (
-              <StoryCard key={p.id} post={p} />
-            ))}
-          </div>
+          {/* 🟣 Write a story */}
+          {authed && (
+            <div className="pt-4">
+              <button
+                onClick={() => setOpen(true)}
+                className="w-full bg-violet-600 hover:bg-violet-700 text-white font-medium py-2 rounded-xl shadow transition-all"
+              >
+                Write a Story
+              </button>
+            </div>
+          )}
+        </aside>
+
+        {/* 🟣 Main feed */}
+        <main>
+          {loading ? (
+            <div className="grid sm:grid-cols-2 xl:grid-cols-3 gap-6">
+              {Array.from({ length: 6 }).map((_, i) => (
+                <div
+                  key={i}
+                  className="h-56 bg-gray-100 animate-pulse rounded-2xl"
+                />
+              ))}
+            </div>
+          ) : filteredPosts.length === 0 ? (
+            <div className="text-center text-gray-500 mt-20">
+              <p>
+                No stories found
+                {activeCategory ? ` in ${activeCategory}` : ""}.
+              </p>
+            </div>
+          ) : (
+            <div className="grid sm:grid-cols-2 xl:grid-cols-3 gap-6">
+              {filteredPosts.map((post) => (
+                <StoryCard key={post.id} post={post} />
+              ))}
+            </div>
+          )}
         </main>
-
-        {/* Floating compose button */}
-        {authed && (
-          <button
-            onClick={() => setOpen(true)}
-            className="fixed bottom-6 right-6 w-12 h-12 rounded-full bg-brand-600 text-white text-2xl shadow-lg"
-            aria-label="Compose"
-          >
-            +
-          </button>
-        )}
-
-        {/* Story modal */}
-        {open && (
-          <StoryForm onCreated={onCreated} onClose={() => setOpen(false)} />
-        )}
       </div>
+
+      {/* 🟣 Story creation modal */}
+      {open && (
+        <StoryForm
+          onClose={() => setOpen(false)}
+          onCreated={onCreated}
+        />
+      )}
     </div>
   );
 }

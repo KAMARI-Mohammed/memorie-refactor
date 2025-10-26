@@ -4,19 +4,36 @@ const prisma = new PrismaClient();
 const router = express.Router();
 
 // List posts (public)
-router.get('/', async (req, res) => {
+/*router.get('/', async (req, res) => {
   const posts = await prisma.post.findMany({
     orderBy: { createdAt: 'desc' },
     include: { author: { select: { id: true, username: true, avatarUrl: true } }, _count: { select: { comments: true, likes: true } } }
   });
   res.json(posts);
-});
+});*/
+router.get('/', async (req, res) => {
+  const { category } = req.query;
+  const where = category ? { categories: { some: { category: { name: category } } } } : {};
 
-// Get single post
+  const posts = await prisma.post.findMany({
+    where,
+    orderBy: { createdAt: 'desc' },
+    include: {
+      author: { select: { id: true, username: true, avatarUrl: true } },
+      categories: { include: { category: true } },
+      _count: { select: { comments: true, likes: true } },
+    },
+  });
+
+  res.json(posts);
+});
+ 
+
+// Get single post (with categories)
 router.get('/:id', async (req, res) => {
   try {
     const post = await prisma.post.findUnique({
-      where: { id:req.params.id },
+      where: { id: req.params.id },
       include: {
         author: {
           select: { id: true, username: true, avatarUrl: true },
@@ -28,6 +45,9 @@ router.get('/:id', async (req, res) => {
             },
           },
           orderBy: { createdAt: 'asc' },
+        },
+        categories: {                 // 🟣 ADD THIS
+          include: { category: true },
         },
         _count: {
           select: { likes: true, comments: true },
@@ -42,6 +62,7 @@ router.get('/:id', async (req, res) => {
     res.status(500).json({ error: 'Server error' });
   }
 });
+
 
 
 // Create post (auth required)

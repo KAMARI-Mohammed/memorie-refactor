@@ -9,6 +9,7 @@ import postsRouter from './routes/posts.js';
 import commentsRouter from './routes/comments.js';
 import likesRouter from './routes/likes.js';
 import chatRouter, { initChat } from './routes/chat.js';
+import categoriesRoute from "./routes/categories.js";
 import { authMiddleware } from './middleware/auth.js';
 import dotenv from 'dotenv';
 dotenv.config();
@@ -26,6 +27,8 @@ app.use('/api/posts', authMiddleware.optional, postsRouter);
 app.use('/api/comments', authMiddleware.required, commentsRouter);
 app.use('/api/likes', authMiddleware.required, likesRouter);
 app.use('/api/chat', authMiddleware.required, chatRouter);
+app.use("/categories", categoriesRoute);
+
 
 const server = http.createServer(app);
 const io = new Server(server, { cors: { origin: process.env.CLIENT_ORIGIN || '*' } });

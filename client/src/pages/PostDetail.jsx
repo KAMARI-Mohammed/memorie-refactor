@@ -8,13 +8,13 @@ export default function PostDetail() {
   const [comment, setComment] = useState("");
 
   useEffect(() => {
-    api.get(`/posts/${id}`).then(({ data }) => setPost(data));
+    api.get(`/api/posts/${id}`).then(({ data }) => setPost(data));
   }, [id]);
 
   async function addComment(e) {
     e.preventDefault();
     if (!comment.trim()) return;
-    const { data } = await api.post(`/comments/${id}`, { content: comment });
+    const { data } = await api.post(`/api/comments/${id}`, { content: comment });
     setPost({ ...post, comments: [...post.comments, data] });
     setComment("");
   }
@@ -31,7 +31,12 @@ export default function PostDetail() {
 
   const words = post.content?.split(" ").length || 0;
   const readTime = Math.ceil(words / 180);
-  const categories = post.categories || ["General"];
+  // 🟣 Correct version
+  const categories =
+  Array.isArray(post.categories) && post.categories.length > 0
+    ? post.categories.map((c) => c.category?.name).filter(Boolean)
+    : ["General"];
+
 
   return (
     <div className="max-w-4xl mx-auto px-6 md:px-0 py-10 space-y-8">
